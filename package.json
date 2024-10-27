@@ -1,0 +1,68 @@
+{
+  "name": "@solarpunkltd/swarm-stream-js",
+  "version": "0.0.1",
+  "description": "JS library for streaming on Swarm",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "license": "Apache-2.0",
+  "keywords": [
+    "swarm",
+    "js",
+    "streaming"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Solar-Punk-Ltd/swarm-stream-js"
+  },
+  "bugs": {
+    "url": "https://github.com/Solar-Punk-Ltd/swarm-stream-js/issues"
+  },
+  "author": "levente.kiss@solarpunk.buzz",
+  "scripts": {
+    "build": "tsc && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "npm run lint -- --fix",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "@ethersphere/bee-js": "^8.1.0",
+    "ethers": "^5.7.2",
+    "mantaray-js": "^1.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "eslint": "^8.55.0",
+    "eslint-config-prettier": "^8.10.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-prettier": "^4.2.1",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "eslint-plugin-simple-import-sort": "^10.0.0",
+    "prettier": "^2.8.8",
+    "sass": "^1.69.7",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.8",
+    "vite-plugin-dts": "^4.2.4",
+    "vite-plugin-node-polyfills": "^0.19.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ]
+  }
+}
