@@ -95,4 +95,4 @@ Helpful docs:
 - https://en.wikipedia.org/wiki/Extensible_Binary_Meta_Language
 
 An example demo project to demonstrate a simple use case:
-https://github.com/Solar-Punk-Ltd/ethercast
+https://github.com/Solar-Punk-Ltd/swarm-stream-react-example
