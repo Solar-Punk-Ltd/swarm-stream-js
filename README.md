@@ -5,22 +5,22 @@ A streaming library for Swarm that enables media streaming and playback (watchin
 To play a stream, first initialize a player Bee node. This node handles all requests related to playing the stream. Then, you can use the attach to initalize the player.
 
 ```
-import { playerBee, VideoPlayer } from 'swarm-stream-react-js';
+import { playerBee, attach, EVENTS } from 'swarm-stream-js';
 
 playerBee.setBee('http://localhost:1633');
 const controls = attach({ media: videoRef, address: owner, topic });
 
 // on the controls you use the followings
-return {
+{
   play,
   seek,
   restart,
   setVolumeControl,
   pause,
   continueStream,
-  getDuration: getApproxDuration,
-  on: emitter.on,
-  off: emitter.off,
+  getDuration,
+  on,
+  off,
 };
 
 You can listen on events like this
