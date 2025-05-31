@@ -1,9 +1,9 @@
-import { Bee, Data, FeedReader } from '@ethersphere/bee-js';
+import { Bee, FeedIndex, FeedReader, Topic } from '@ethersphere/bee-js';
 
 import { retryAwaitableAsync, sleep } from '../utils/common';
 import { CLUSTER_ID, CLUSTER_TIMESTAMP, FIRST_SEGMENT_INDEX, HEX_RADIX, TIMESTAMP_SCALE } from '../utils/constants';
 import { EventEmitter } from '../utils/eventEmitter';
-import { decrementHexString, incrementHexString } from '../utils/operations';
+import { decrementHexString } from '../utils/operations';
 import { findHexInUint8Array, parseVint } from '../utils/webm';
 
 import { AsyncQueue } from './asyncQueue';
@@ -64,8 +64,8 @@ let sourceBuffer: SourceBuffer;
 let streamTimer: NodeJS.Timeout | null;
 let reader: FeedReader;
 let processQueue: AsyncQueue;
-let currIndex = '';
-let seekIndex = '';
+let currIndex: FeedIndex | null;
+let seekIndex: FeedIndex | null;
 
 const settings: PlayerOptions = {
   timeslice: 2000,
@@ -92,8 +92,8 @@ export function getMediaElement() {
 }
 
 async function getApproxDuration(): Promise<VideoDuration> {
-  const metaFeedUpdateRes = await reader.download();
-  const decimalIndex = parseInt(metaFeedUpdateRes.feedIndex as string, HEX_RADIX);
+  const metaFeedUpdateRes = await reader.downloadPayload();
+  const decimalIndex = parseInt(metaFeedUpdateRes.feedIndex.toString(), HEX_RADIX);
   return { duration: decimalIndex * settings.timeslice, index: decimalIndex };
 }
 
@@ -107,8 +107,8 @@ function setPlayerOptions(s: Partial<Record<keyof PlayerOptions, number>>) {
 }
 
 function setFeedReader(rawTopic: string, owner: string) {
-  const topic = bee.makeFeedTopic(rawTopic);
-  reader = bee.makeFeedReader('sequence', topic, owner);
+  const topic = Topic.fromString(rawTopic);
+  reader = bee.makeFeedReader(topic, owner);
 }
 
 function setVolumeControl(volumeControl: HTMLInputElement) {
@@ -189,8 +189,8 @@ export function detach() {
   processQueue = null!;
   mediaElement = null!;
   reader = null!;
-  currIndex = '';
-  seekIndex = '';
+  currIndex = null;
+  seekIndex = null;
 }
 
 async function startAppending() {
@@ -202,6 +202,7 @@ async function startAppending() {
 
   processQueue = new AsyncQueue({ indexed: false, waitable: false });
   const append = appendBuffer(appendToSourceBuffer);
+
   streamTimer = setInterval(() => processQueue.enqueue(append), settings.timeslice);
 
   await sleep(settings.initBufferTime);
@@ -230,7 +231,11 @@ function pauseAppending() {
 }
 
 async function initStream(appendToSourceBuffer: (data: Uint8Array) => void) {
-  const firstCluster = (await findFirstCluster())!;
+  const firstCluster = await findFirstCluster();
+  if (!firstCluster) {
+    throw new Error('No valid cluster found in the feed.');
+  }
+
   currIndex = firstCluster.feedIndex;
   const initSegment = await createInitSegment(firstCluster.clusterIdIndex, firstCluster.segment);
   setMediaCurrentTime(initSegment);
@@ -239,20 +244,25 @@ async function initStream(appendToSourceBuffer: (data: Uint8Array) => void) {
 
 function appendBuffer(appendToSourceBuffer: (data: Uint8Array) => void) {
   return async () => {
-    await loadSegmentBuffer(currIndex);
-
-    if (segmentBuffer[currIndex]?.loading || segmentBuffer[currIndex]?.error) {
+    if (!currIndex) {
       return;
     }
 
-    appendToSourceBuffer(segmentBuffer[currIndex].segment!);
-    delete segmentBuffer[currIndex];
+    await loadSegmentBuffer(currIndex);
 
-    currIndex = incrementHexString(currIndex);
+    const currIndexKey = currIndex.toString();
+    if (segmentBuffer[currIndexKey]?.loading || segmentBuffer[currIndexKey]?.error) {
+      return;
+    }
+
+    appendToSourceBuffer(segmentBuffer[currIndexKey].segment!);
+    delete segmentBuffer[currIndexKey];
+
+    currIndex = currIndex.next();
   };
 }
 
-function loadSegmentBuffer(currIndex: string) {
+function loadSegmentBuffer(currIndex: FeedIndex) {
   // num of parallel soc requests
   const requestNum = 2;
   let promiseIndex = currIndex;
@@ -260,47 +270,33 @@ function loadSegmentBuffer(currIndex: string) {
   return new Promise<void>((resolve, reject) => {
     for (let i = 0; i < requestNum; i++) {
       const currentIndex = promiseIndex;
+      const currIndexKey = promiseIndex.toString();
 
-      if (segmentBuffer[currentIndex]?.loading || segmentBuffer[currentIndex]?.segment) {
-        promiseIndex = incrementHexString(promiseIndex);
+      if (segmentBuffer[currIndexKey]?.loading || segmentBuffer[currIndexKey]?.segment) {
+        promiseIndex = promiseIndex.next();
         continue;
       }
 
-      segmentBuffer[currentIndex] = {
+      segmentBuffer[currIndexKey] = {
         loading: true,
         segment: null,
         error: null,
       };
 
       reader
-        .download({ index: currentIndex })
+        .downloadPayload({ index: currentIndex })
         .then((res) => {
-          bee
-            .downloadData(res.reference)
-            .then((segment) => {
-              segmentBuffer[currentIndex] = {
-                loading: false,
-                segment,
-                error: null,
-              };
-            })
-            .catch((error) => {
-              if (error.status !== 404) {
-                console.error('Error with reader:', error);
-              }
-              segmentBuffer[currentIndex] = {
-                loading: false,
-                segment: null,
-                error,
-              };
-              reject();
-            });
+          segmentBuffer[currIndexKey] = {
+            loading: false,
+            segment: res.payload.toUint8Array(),
+            error: null,
+          };
         })
         .catch((error) => {
           if (error.status !== 404) {
             console.error('Error with reader:', error);
           }
-          segmentBuffer[currentIndex] = {
+          segmentBuffer[currIndexKey] = {
             loading: false,
             segment: null,
             error,
@@ -308,7 +304,7 @@ function loadSegmentBuffer(currIndex: string) {
           reject();
         });
 
-      promiseIndex = incrementHexString(promiseIndex);
+      promiseIndex = promiseIndex.next();
     }
 
     resolve();
@@ -348,36 +344,43 @@ function setMediaCurrentTime(clusterSegment: Uint8Array) {
   mediaElement.currentTime = timestamp;
 }
 
-async function createInitSegment(clusterStartIndex: number, segment: Data) {
-  const metaFeedUpdateRes = await reader.download({ index: FIRST_SEGMENT_INDEX });
-  const meta = await bee.downloadData(metaFeedUpdateRes.reference);
-  setPlayerOptions({ timeslice: getTimestampScaleInSeconds(meta) });
+async function createInitSegment(clusterStartIndex: number, segment: Uint8Array) {
+  const meta = await reader.downloadPayload({ index: FeedIndex.fromBigInt(FIRST_SEGMENT_INDEX) });
+  const metaBytes = meta.payload.toUint8Array();
+  setPlayerOptions({ timeslice: getTimestampScaleInSeconds(metaBytes) });
 
-  const initSegment = addMetaToClusterStartSegment(clusterStartIndex, meta, segment);
+  const initSegment = addMetaToClusterStartSegment(clusterStartIndex, metaBytes, segment);
   return initSegment;
 }
 
 async function findFirstCluster() {
   let UNTIL_CLUSTER_IS_FOUND = true;
+  let initIndex: FeedIndex | null = null;
+
   while (UNTIL_CLUSTER_IS_FOUND) {
     try {
-      const feedUpdateRes = await reader.download(seekIndex ? { index: seekIndex } : undefined);
-      const segment = await retryAwaitableAsync(() => bee.downloadData(feedUpdateRes.reference));
+      const index: FeedIndex | null = seekIndex || initIndex;
+
+      const feedUpdateRes: any = await retryAwaitableAsync(() => reader.downloadPayload(index ? { index } : undefined));
+      const segment = feedUpdateRes.payload.toUint8Array();
 
       const clusterIdIndex = findHexInUint8Array(segment, CLUSTER_ID);
 
       if (clusterIdIndex !== -1) {
         UNTIL_CLUSTER_IS_FOUND = false;
-        seekIndex = '';
+        seekIndex = null;
         return {
-          feedIndex: feedUpdateRes.feedIndexNext || incrementHexString(feedUpdateRes.feedIndex as string),
+          feedIndex: feedUpdateRes.feedIndexNext || feedUpdateRes.feedIndex.next(),
           clusterIdIndex,
           segment,
         };
       }
 
       if (seekIndex) {
-        seekIndex = decrementHexString(seekIndex);
+        const decIndex = BigInt(decrementHexString(seekIndex.toString()));
+        seekIndex = FeedIndex.fromBigInt(decIndex);
+      } else {
+        initIndex = feedUpdateRes.feedIndexNext;
       }
     } catch (error) {
       // nothing for now
@@ -387,7 +390,7 @@ async function findFirstCluster() {
   }
 }
 
-function addMetaToClusterStartSegment(clusterStartIndex: number, meta: Data, segment: Data): Uint8Array {
+function addMetaToClusterStartSegment(clusterStartIndex: number, meta: Uint8Array, segment: Uint8Array): Uint8Array {
   const clusterData = segment.slice(clusterStartIndex);
   const metaAndClusterArray = new Uint8Array(meta.length + clusterData.length);
   metaAndClusterArray.set(meta);
@@ -408,14 +411,14 @@ function getTimestampScaleInSeconds(segment: Uint8Array) {
 }
 
 function setSeekIndex(index: number) {
-  seekIndex = index.toString(HEX_RADIX).padStart(HEX_RADIX, '0');
+  seekIndex = FeedIndex.fromBigInt(BigInt(index));
 }
 
 async function cleanSourceBuffer() {
   pauseAppending();
   await processQueue.clearQueue();
   sourceBuffer = null!;
-  currIndex = '';
+  currIndex = null;
 }
 
 function emitEvent(event: string, value: any) {

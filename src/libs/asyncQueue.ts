@@ -1,6 +1,7 @@
+import { FeedIndex } from '@ethersphere/bee-js';
+
 import { sleep } from '../utils/common';
 import { FIRST_SEGMENT_INDEX } from '../utils/constants';
-import { incrementHexString } from '../utils/operations';
 
 export class AsyncQueue {
   private indexed;
@@ -8,8 +9,8 @@ export class AsyncQueue {
   private clearWaitTime;
   private isProcessing = false;
   private currentPromiseProcessing = false;
-  private index = FIRST_SEGMENT_INDEX;
-  private queue: ((index?: string) => Promise<void>)[] = [];
+  private index = FeedIndex.fromBigInt(FIRST_SEGMENT_INDEX);
+  private queue: ((index?: FeedIndex) => Promise<void>)[] = [];
 
   constructor(settings: { indexed?: boolean; waitable?: boolean; clearWaitTime?: number } = {}) {
     this.indexed = settings.indexed || false;
@@ -29,7 +30,7 @@ export class AsyncQueue {
       if (this.waitable) {
         try {
           await action();
-          this.index = incrementHexString(this.index);
+          this.index = this.index.next();
         } catch (error) {
           console.error('Error processing promise:', error);
           throw error;
@@ -39,7 +40,7 @@ export class AsyncQueue {
       } else {
         action()
           .then(() => {
-            this.index = incrementHexString(this.index);
+            this.index = this.index.next();
           })
           .catch((error) => {
             console.error('Error processing promise:', error);
@@ -53,7 +54,7 @@ export class AsyncQueue {
     this.isProcessing = false;
   }
 
-  enqueue(promiseFunction: (index?: string) => Promise<any>) {
+  enqueue(promiseFunction: (index?: FeedIndex) => Promise<any>) {
     this.queue.push(promiseFunction);
     this.processQueue();
   }

@@ -1,10 +1,5 @@
 import { HEX_RADIX } from './constants';
 
-export function incrementHexString(hexString: string, i = 1n) {
-  const num = BigInt('0x' + hexString);
-  return (num + i).toString(HEX_RADIX).padStart(HEX_RADIX, '0');
-}
-
 export function decrementHexString(hexString: string, i = 1n) {
   const num = BigInt('0x' + hexString);
   return (num - i).toString(HEX_RADIX).padStart(HEX_RADIX, '0');

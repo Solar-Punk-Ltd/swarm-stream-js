@@ -1,27 +1,6 @@
-import { BrandedType, FlavoredType } from '@ethersphere/bee-js';
+import { HexString, PrefixedHexString } from '../types/hex';
 
-import { HEX_RADIX } from '../constants';
-
-/**
- * Nominal type to represent hex strings WITHOUT '0x' prefix.
- * For example for 32 bytes hex representation you have to use 64 length.
- * TODO: Make Length mandatory: https://github.com/ethersphere/bee-js/issues/208
- */
-export type HexString<Length extends number = number> = FlavoredType<
-  string & {
-    readonly length: Length;
-  },
-  'HexString'
->;
-
-/**
- * Type for HexString with prefix.
- * The main hex type used internally should be non-prefixed HexString
- * and therefore this type should be used as least as possible.
- * Because of that it does not contain the Length property as the variables
- * should be validated and converted to HexString ASAP.
- */
-export type PrefixedHexString = BrandedType<string, 'PrefixedHexString'>;
+import { HEX_RADIX } from './constants';
 
 /**
  * Type guard for HexStrings.

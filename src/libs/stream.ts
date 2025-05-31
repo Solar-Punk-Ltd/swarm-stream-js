@@ -1,4 +1,4 @@
-import { BatchId, Bee, FeedWriter } from '@ethersphere/bee-js';
+import { BatchId, Bee, FeedIndex, FeedWriter, Topic } from '@ethersphere/bee-js';
 
 import { retryAwaitableAsync } from '../utils/common';
 import { CLUSTER_ID } from '../utils/constants';
@@ -47,11 +47,11 @@ export async function startStream(signer: Signer, topic: string, stamp: BatchId,
         const segment = new Uint8Array(await event.data.arrayBuffer());
 
         if (isFirstSegment) {
-          queue.enqueue((index?: string) => uploadSegment(stamp, createInitData(segment), index!));
+          queue.enqueue((index?: FeedIndex) => uploadSegment(stamp, createInitData(segment), index!));
           isFirstSegment = false;
         }
 
-        queue.enqueue((index?: string) => uploadSegment(stamp, segment, index!));
+        queue.enqueue((index?: FeedIndex) => uploadSegment(stamp, segment, index!));
       }
     };
 
@@ -71,16 +71,20 @@ export function isStreamOngoing() {
   return mediaStream?.getTracks().some((track) => track.readyState === 'live');
 }
 
-async function uploadSegment(stamp: BatchId, segment: Uint8Array, index: string) {
-  const res = await retryAwaitableAsync(() => bee.uploadData(stamp, segment, { redundancyLevel: 1 }));
-  console.log(`Uploaded segment ${index} with reference ${res.reference}`);
-  await retryAwaitableAsync(() => feedWriter.upload(stamp, res.reference, { index }));
+async function uploadSegment(stamp: BatchId, segment: Uint8Array, index: FeedIndex) {
+  //const res = await retryAwaitableAsync(() => bee.uploadData(stamp, segment, { redundancyLevel: 1 }));
+  //console.log(`Uploaded segment ${index} with reference ${res.reference}`);
+  await retryAwaitableAsync(() =>
+    feedWriter.uploadPayload(stamp, segment, {
+      index,
+    }),
+  );
 }
 
 async function initFeed(signer: Signer, rawTopic: string, stamp: BatchId) {
-  const topic = bee.makeFeedTopic(rawTopic);
-  await bee.createFeedManifest(stamp, 'sequence', topic, signer.address);
-  feedWriter = bee.makeFeedWriter('sequence', topic, signer.key);
+  const topic = Topic.fromString(rawTopic);
+  await bee.createFeedManifest(stamp, topic, signer.address);
+  feedWriter = bee.makeFeedWriter(topic, signer.key);
 }
 
 function createInitData(segment: Uint8Array) {

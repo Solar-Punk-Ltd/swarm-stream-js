@@ -1,6 +1,6 @@
 {
   "name": "@solarpunkltd/swarm-stream-js",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "JS library for streaming on Swarm",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
@@ -26,7 +26,7 @@
     "prepare": "npm run build"
   },
   "dependencies": {
-    "@ethersphere/bee-js": "^8.1.0",
+    "@ethersphere/bee-js": "^9.0.3",
     "ethers": "^5.7.2",
     "mantaray-js": "^1.0.3"
   },
