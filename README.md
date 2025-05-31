@@ -41,8 +41,6 @@
 pnpm/npm install swarm-stream-js
 ```
 
-````
-
 ## Usage
 
 ### Player (Watch a Stream)
