@@ -214,4 +214,3 @@ A simple example project demonstrating a use case of `swarm-stream-js` can be fo
 - [Swarm Feeds Documentation](https://docs.ethswarm.org/docs/develop/tools-and-features/feeds#what-are-feeds)
 - [The WebM Project](https://www.webmproject.org/)
 - [Extensible Binary Meta Language (EBML)](https://en.wikipedia.org/wiki/Extensible_Binary_Meta_Language) - Used by WebM.
-````
