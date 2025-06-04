@@ -72,6 +72,7 @@ export function isStreamOngoing() {
 }
 
 async function uploadSegment(stamp: BatchId, segment: Uint8Array, index: FeedIndex) {
+  // TODO: bee-js does not support redundancy level yet with uploadPayload
   //const res = await retryAwaitableAsync(() => bee.uploadData(stamp, segment, { redundancyLevel: 1 }));
   //console.log(`Uploaded segment ${index} with reference ${res.reference}`);
   await retryAwaitableAsync(() =>
